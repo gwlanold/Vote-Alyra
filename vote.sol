@@ -45,6 +45,7 @@ contract Voting is Ownable {
     uint tallingTime;
     address private _owner;
     
+    //hello c'est bruno
     constructor () {
         address msgSender = _msgSender();
         _owner = msgSender;
