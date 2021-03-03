@@ -46,9 +46,6 @@ contract Voting is Ownable {
     address private _owner;
     
     constructor () {
-        address msgSender = _msgSender();
-        _owner = msgSender;
-        emit OwnershipTransferred(address(0), msgSender);
         
         proposalRegistrationStartTime = block.timestamp + 10;         // 10 seconds after contract has been deployed
         proposalRegistrationEndTime   = proposalRegistrationStartTime + 1 minutes;   // 2 min after registration started
