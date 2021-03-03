@@ -29,14 +29,14 @@ contract Voting is Ownable {
     
     WorkflowStatus voteStatus = WorkflowStatus.RegisteringVoters;
     
-    string[6] Status=[
-        "RegisteringVoters",
-        "ProposalsRegistrationStarted",
-        "ProposalsRegistrationEnded",
-        "VotingSessionStarted",
-        "VotingSessionEnded",
-        "VotesTallied"
-    ];
+    // string[6] Status=[
+    //     "RegisteringVoters",
+    //     "ProposalsRegistrationStarted",
+    //     "ProposalsRegistrationEnded",
+    //     "VotingSessionStarted",
+    //     "VotingSessionEnded",
+    //     "VotesTallied"
+    // ];
     
     event VoterRegistered(address voterAddress);
     event ProposalsRegistrationStarted();
@@ -80,11 +80,13 @@ contract Voting is Ownable {
         votersRegistrationOver = true;
         updateVoteStatus();
     }
+    
     function proposalsRegistrationTermination() public onlyOwner{
         require(proposals.length!=0,"Please add more proposals!");
         proposalsRegistrationOver = true;
         updateVoteStatus();
     }
+    
     function votingTimeTermination() public onlyOwner{
         votingTimeOver = true;
         updateVoteStatus();
@@ -118,6 +120,17 @@ contract Voting is Ownable {
     }
     
     function getVoteStatus() public view returns (string memory) {
+        string[6] memory Status=[
+        "RegisteringVoters",
+        "ProposalsRegistrationStarted",
+        "ProposalsRegistrationEnded",
+        "VotingSessionStarted",
+        "VotingSessionEnded",
+        "VotesTallied"
+        ];
+        // if (voteStatus == WorkflowStatus.RegisteringVoters){ return "RegisteringVoters";}
+        // else if () {}
+        
         return Status[uint(voteStatus)];
     }
     
@@ -127,7 +140,7 @@ contract Voting is Ownable {
         require(!whitelist[_address].isRegistered, "This address is already registered");
         
         whitelist[_address].isRegistered = true;
-        
+        votersCount++;
         emit VoterRegistered(_address);
     }
     
@@ -176,10 +189,10 @@ contract Voting is Ownable {
         emit VotesTallied();
     }
     
-    function WinningProposalId() public view returns(uint) {
+    function WinningProposalId() public view returns(string memory) {
         // require(block.timestamp > tallingTime + 10, "waiting for the winning proposal to be proclamed...");
         require(votesCounted,"Votes not counted yet!");
-        return winningProposalId;
+        return proposals[winningProposalId].description;
     }
 
 }
