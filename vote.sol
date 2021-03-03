@@ -18,6 +18,8 @@ contract Voting is Ownable {
     
     mapping(address => Voter) whitelist;
     
+    mapping (uint => uint[]) winningProposalIds;
+    
     enum WorkflowStatus {
         RegisteringVoters,
         ProposalsRegistrationStarted,
@@ -28,15 +30,6 @@ contract Voting is Ownable {
     }
     
     WorkflowStatus voteStatus = WorkflowStatus.RegisteringVoters;
-    
-    // string[6] Status=[
-    //     "RegisteringVoters",
-    //     "ProposalsRegistrationStarted",
-    //     "ProposalsRegistrationEnded",
-    //     "VotingSessionStarted",
-    //     "VotingSessionEnded",
-    //     "VotesTallied"
-    // ];
     
     event VoterRegistered(address voterAddress);
     event ProposalsRegistrationStarted();
@@ -75,20 +68,28 @@ contract Voting is Ownable {
         // tallingTime = votingSessionEndTime + 10;
     }
     
-    function votersRegistrationTermination() public onlyOwner{
+    function b_votersRegistrationTermination() public onlyOwner{
         require(votersCount>2,"Please add at least 1 voter!");
         votersRegistrationOver = true;
+        emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
+        emit ProposalsRegistrationStarted();
         updateVoteStatus();
     }
     
-    function proposalsRegistrationTermination() public onlyOwner{
+    function d_proposalsRegistrationTermination() public onlyOwner{
         require(proposals.length!=0,"Please add more proposals!");
         proposalsRegistrationOver = true;
+        emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationStarted,WorkflowStatus.ProposalsRegistrationEnded);
+        emit ProposalsRegistrationEnded();
+        emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationEnded,WorkflowStatus.VotingSessionStarted);
+        emit VotingSessionStarted();
         updateVoteStatus();
     }
     
-    function votingTimeTermination() public onlyOwner{
+    function f_votingTimeTermination() public onlyOwner{
         votingTimeOver = true;
+        emit WorkflowStatusChange(WorkflowStatus.VotingSessionStarted,WorkflowStatus.VotingSessionEnded);
+        emit VotingSessionEnded();
         updateVoteStatus();
     }
     
@@ -120,6 +121,13 @@ contract Voting is Ownable {
     }
     
     function getVoteStatus() public view returns (string memory) {
+        // if (voteStatus == WorkflowStatus.RegisteringVoters){ return "RegisteringVoters";}
+        // else if (voteStatus == WorkflowStatus.ProposalsRegistrationStarted) {return "ProposalsRegistrationStarted";}
+        // else if (voteStatus == WorkflowStatus.ProposalsRegistrationEnded) {return "ProposalsRegistrationEnded";}
+        // else if (voteStatus == WorkflowStatus.VotingSessionStarted) {return "VotingSessionStarted";}
+        // else if (voteStatus == WorkflowStatus.VotingSessionEnded) {return "VotingSessionEnded";}
+        // else {return "VotingSessionEnded";}
+        
         string[6] memory Status=[
         "RegisteringVoters",
         "ProposalsRegistrationStarted",
@@ -128,13 +136,10 @@ contract Voting is Ownable {
         "VotingSessionEnded",
         "VotesTallied"
         ];
-        // if (voteStatus == WorkflowStatus.RegisteringVoters){ return "RegisteringVoters";}
-        // else if () {}
-        
         return Status[uint(voteStatus)];
     }
     
-    function registration(address _address) public onlyOwner {
+    function a_votersRegistration(address _address) public onlyOwner {
        // require(block.timestamp < proposalRegistrationEndTime, "Registration is over");
         require(!votersRegistrationOver, "Registration is over");
         require(!whitelist[_address].isRegistered, "This address is already registered");
@@ -144,7 +149,7 @@ contract Voting is Ownable {
         emit VoterRegistered(_address);
     }
     
-    function proposalRegistration(string memory _proposal) public {
+    function c_proposalRegistration(string memory _proposal) public {
         // require(block.timestamp >= proposalRegistrationStartTime, "Proposal registration didn't start yet");
         // require(block.timestamp < proposalRegistrationEndTime, "Proposal registration is over");
         require(votersRegistrationOver && !proposalsRegistrationOver,"Proposals Registering not open!");
@@ -163,7 +168,7 @@ contract Voting is Ownable {
         emit ProposalRegistered( whitelist[msg.sender].votedProposalId);
     }
     
-    function vote(uint propId) public {
+    function e_vote(uint propId) public {
         require(whitelist[msg.sender].isRegistered, "You can't vote cause you're not registered");
         // require(block.timestamp >= votingSessionStartTime, "Voting has not started yet.");
         // require(block.timestamp < votingSessionEndTime, "Voting is over");
@@ -177,12 +182,18 @@ contract Voting is Ownable {
         emit Voted(msg.sender, propId);
     }
     
-    function CountVotes() public onlyOwner {
+    function g_CountVotes() public onlyOwner {
         // require(block.timestamp > tallingTime, "Counting votes...");
-        require(votersRegistrationOver && proposalsRegistrationOver && votingTimeOver,"counting votes not open!");
-        winningProposalId = 0; //proposals[0].voteCount;
+        require(votersRegistrationOver && proposalsRegistrationOver && votingTimeOver,"Counting votes not open!");
+        emit WorkflowStatusChange(WorkflowStatus.VotingSessionEnded,WorkflowStatus.VotesTallied);
+        // mapping (uint => uint[]) winningProposalIds; //proposals[0].voteCount;
         for (uint index = 1; index < proposals.length; index++) {
-            if (winningProposalId < proposals[index].voteCount)  winningProposalId = index ;
+            if (winningProposalId < proposals[index].voteCount) {
+                winningProposalId = index ;
+            }
+            else if (winningProposalId == proposals[index].voteCount) { 
+                winningProposalIds[winningProposalId].push(index) ;
+            }
         }
         votesCounted = true;
         updateVoteStatus();
@@ -192,6 +203,7 @@ contract Voting is Ownable {
     function WinningProposalId() public view returns(string memory) {
         // require(block.timestamp > tallingTime + 10, "waiting for the winning proposal to be proclamed...");
         require(votesCounted,"Votes not counted yet!");
+        require(winningProposalIds[winningProposalId].length==1,"Several winning proposals!");
         return proposals[winningProposalId].description;
     }
 
