@@ -54,7 +54,8 @@ contract Voting is Ownable {
     bool votingTimeOn = false;
     bool votingTimeOver = false;
     bool votesCounted = false;
-    uint votersCount;
+    uint votersCount; //pour compter le nb d'électeurs ajoutés
+    uint votesCount; //pour compter le nb de votes
     
     
     constructor () {
@@ -90,6 +91,7 @@ contract Voting is Ownable {
     
     //@notice Les électeurs inscrits sont autorisés à enregistrer leurs propositions pendant que la session d'enregistrement est active.
     function D_proposalRegistration(string memory _proposal) public {
+        require(proposalsRegistrationOn,"Proposals registration not open!");
         require(votersRegistrationOver && !proposalsRegistrationOver,"Proposals Registering not open!");
         require(whitelist[msg.sender].isRegistered, "You can't make a proposal cause you're not registered");
         require(whitelist[msg.sender].votedProposalId==0,"You already made a proposal!");
@@ -122,6 +124,7 @@ contract Voting is Ownable {
     
     //@notice Les électeurs inscrits votent pour leurs propositions préférées.
     function G_vote(uint propId) public {
+        require(votingTimeOn,"Vote not open yet!");
         require(whitelist[msg.sender].isRegistered, "You can't vote cause you're not registered");
         require(votersRegistrationOver && proposalsRegistrationOver && !votingTimeOver,"Voting time not open!");
         require(!whitelist[msg.sender].hasVoted, "You voted already");
@@ -129,12 +132,14 @@ contract Voting is Ownable {
         whitelist[msg.sender].votedProposalId = propId;
         whitelist[msg.sender].hasVoted = true;
         proposals[propId].voteCount++;
+        votesCount++;
         
         emit Voted(msg.sender, propId);
     }
     
     //@notice L'administrateur du vote met fin à la session de vote.
     function H_votingTimeTermination() public onlyOwner{
+        require(votesCount>0,"Nobody has voted yet!");
         votingTimeOver = true;
         emit WorkflowStatusChange(WorkflowStatus.VotingSessionStarted,WorkflowStatus.VotingSessionEnded);
         emit VotingSessionEnded();
