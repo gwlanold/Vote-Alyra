@@ -47,12 +47,6 @@ contract Voting is Ownable {
     
     uint private winningProposalId;
     Proposal[] public proposals;
-    // uint proposalRegistrationStartTime;
-    // uint proposalRegistrationEndTime;
-    // uint votingSessionStartTime;
-    // uint votingSessionEndTime;
-    // uint tallingTime;
-    //address private _owner;
     
     bool votersRegistrationOver = false;
     bool proposalsRegistrationOn = false;
@@ -66,18 +60,11 @@ contract Voting is Ownable {
     constructor () {
         whitelist[msg.sender].isRegistered = true;
         votersCount = 1;
-
-        // proposalRegistrationStartTime = block.timestamp + 10;         // 10 seconds after contract has been deployed
-        // proposalRegistrationEndTime   = proposalRegistrationStartTime + 1 minutes;   // 2 min after registration started
-        // votingSessionStartTime = proposalRegistrationEndTime + 10;
-        // votingSessionEndTime = votingSessionStartTime + 1 minutes;
-        // tallingTime = votingSessionEndTime + 10;
     }
     
     
     //@notice L'administrateur du vote enregistre une liste blanche d'électeurs identifiés par leur adresse Ethereum.
     function A_votersRegistration(address _address) public onlyOwner {
-       // require(block.timestamp < proposalRegistrationEndTime, "Registration is over");
         require(!votersRegistrationOver, "Registration is over");
         require(!whitelist[_address].isRegistered, "This address is already registered");
         
@@ -91,34 +78,24 @@ contract Voting is Ownable {
         require(votersCount>2,"Please add at least 1 voter!");
         votersRegistrationOver = true;
         emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
-        //emit ProposalsRegistrationStarted();
         updateVoteStatus();
     }
      
     //@notice l'administrateur du vote commence la session d'enregistrement des propositions.
     function C_proposalsRegistrationStart() public onlyOwner{
        proposalsRegistrationOn = true;
-       //emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
        emit ProposalsRegistrationStarted();
        updateVoteStatus();
     }
     
     //@notice Les électeurs inscrits sont autorisés à enregistrer leurs propositions pendant que la session d'enregistrement est active.
     function D_proposalRegistration(string memory _proposal) public {
-        // require(block.timestamp >= proposalRegistrationStartTime, "Proposal registration didn't start yet");
-        // require(block.timestamp < proposalRegistrationEndTime, "Proposal registration is over");
         require(votersRegistrationOver && !proposalsRegistrationOver,"Proposals Registering not open!");
         require(whitelist[msg.sender].isRegistered, "You can't make a proposal cause you're not registered");
         require(whitelist[msg.sender].votedProposalId==0,"You already made a proposal!");
         
-        Proposal memory newProposal = Proposal({
-            description: _proposal,
-            voteCount: 0
-        });
-        
-        proposals.push(newProposal);
-        // whitelist[msg.sender].votedProposalId = proposals.push(Proposal(_proposal,0))-1;
-        
+        proposals.push(Proposal(_proposal,0));
+
         //@dev Pour éviter que le premier proposant puisse faire plusieurs propositions 
         if (proposals.length==1) {whitelist[msg.sender].votedProposalId =  proposals.length;}
         else {whitelist[msg.sender].votedProposalId =  proposals.length-1;}
@@ -134,13 +111,11 @@ contract Voting is Ownable {
         emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationStarted,WorkflowStatus.ProposalsRegistrationEnded);
         emit ProposalsRegistrationEnded();
         emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationEnded,WorkflowStatus.VotingSessionStarted);
-        //emit VotingSessionStarted();
-        updateVoteStatus();
+          updateVoteStatus();
     }
     
     function F_votingTimeStart() public onlyOwner{
        votingTimeOn = true;
-       //emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
        emit VotingSessionStarted();
        updateVoteStatus();
     }
@@ -148,8 +123,6 @@ contract Voting is Ownable {
     //@notice Les électeurs inscrits votent pour leurs propositions préférées.
     function G_vote(uint propId) public {
         require(whitelist[msg.sender].isRegistered, "You can't vote cause you're not registered");
-        // require(block.timestamp >= votingSessionStartTime, "Voting has not started yet.");
-        // require(block.timestamp < votingSessionEndTime, "Voting is over");
         require(votersRegistrationOver && proposalsRegistrationOver && !votingTimeOver,"Voting time not open!");
         require(!whitelist[msg.sender].hasVoted, "You voted already");
         
@@ -170,10 +143,8 @@ contract Voting is Ownable {
     
     //@notice L'administrateur du vote comptabilise les votes.
     function I_CountVotes() public onlyOwner {
-        // require(block.timestamp > tallingTime, "Counting votes...");
         require(votersRegistrationOver && proposalsRegistrationOver && votingTimeOver,"Counting votes not open!");
         emit WorkflowStatusChange(WorkflowStatus.VotingSessionEnded,WorkflowStatus.VotesTallied);
-        // mapping (uint => uint[]) winningProposalIds; //proposals[0].voteCount;
         
         for (uint index = 1; index < proposals.length; index++) {
             if (proposals[winningProposalId].voteCount < proposals[index].voteCount) {
@@ -190,7 +161,6 @@ contract Voting is Ownable {
     
     //@notice Tout le monde peut vérifier les derniers détails de la proposition gagnante.
     function J_WinningProposalId() public view returns(string memory) {
-        // require(block.timestamp > tallingTime + 10, "waiting for the winning proposal to be proclamed...");
         require(votesCounted,"Votes not counted yet!");
         require(winningProposalIds[winningProposalId].length>1,"Several winning proposals!");
         return proposals[winningProposalId].description;
@@ -198,33 +168,11 @@ contract Voting is Ownable {
     
     //@dev permet d'updater le status du vote
     function updateVoteStatus() private {
-        //WorkflowStatus voteStatus;
         
-        //if (block.timestamp < proposalRegistrationStartTime) voteStatus = WorkflowStatus.RegisteringVoters;
-        // if (block.timestamp >= proposalRegistrationStartTime &&
-        //     block.timestamp < proposalRegistrationEndTime
-        // ) voteStatus = WorkflowStatus.ProposalsRegistrationStarted;
-        //if (votersRegistrationOver && !proposalsRegistrationOver) voteStatus = WorkflowStatus.ProposalsRegistrationStarted;
         if (proposalsRegistrationOn && !proposalsRegistrationOver) voteStatus = WorkflowStatus.ProposalsRegistrationStarted;
-        
-        // if (block.timestamp >= proposalRegistrationEndTime &&
-        //     block.timestamp < votingSessionStartTime
-        // ) voteStatus = WorkflowStatus.ProposalsRegistrationEnded;
-        //if (proposalsRegistrationOver && !votingTimeOver) voteStatus = WorkflowStatus.ProposalsRegistrationEnded;
         if (proposalsRegistrationOver && !votingTimeOn) voteStatus = WorkflowStatus.ProposalsRegistrationEnded;
-        
         if (votingTimeOn && !votingTimeOver) voteStatus = WorkflowStatus.VotingSessionStarted;
-        
-        // if (block.timestamp >= votingSessionStartTime &&
-        //     block.timestamp < votingSessionEndTime
-        // ) voteStatus = WorkflowStatus.VotingSessionEnded;
         if (votingTimeOver && !votesCounted) voteStatus = WorkflowStatus.VotingSessionEnded;
-        
-        // if (block.timestamp >= votingSessionEndTime &&
-        //     block.timestamp < tallingTime
-        // ) voteStatus = WorkflowStatus.VotingSessionEnded;
-        
-        // if (block.timestamp >= tallingTime) voteStatus = WorkflowStatus.VotesTallied;
         if (votesCounted) voteStatus = WorkflowStatus.VotesTallied;
     }
     
