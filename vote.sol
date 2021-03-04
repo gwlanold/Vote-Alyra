@@ -154,6 +154,7 @@ contract Voting is Ownable {
         for (uint index = 1; index < proposals.length; index++) {
             if (proposals[winningProposalId].voteCount < proposals[index].voteCount) {
                 winningProposalId = index ;
+                winningProposalIds[winningProposalId].push(winningProposalId);
             }
             else if (proposals[winningProposalId].voteCount == proposals[index].voteCount) { 
                 winningProposalIds[winningProposalId].push(index) ;
@@ -165,10 +166,10 @@ contract Voting is Ownable {
     }
     
     //@notice Tout le monde peut vérifier les derniers détails de la proposition gagnante.
-    function J_WinningProposalId() public view returns(string memory) {
+    function J_WinningProposalId() public view returns(uint[] memory) {
         require(votesCounted,"Votes not counted yet!");
-        require(winningProposalIds[winningProposalId].length>1,"Several winning proposals!");
-        return proposals[winningProposalId].description;
+        //require(winningProposalIds[winningProposalId].length>1,"Several winning proposals!");
+        return winningProposalIds[winningProposalId];//proposals[winningProposalId].description;
     }
     
     //@dev permet d'updater le status du vote
