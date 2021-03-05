@@ -22,7 +22,7 @@ contract Voting is Ownable {
     
     mapping(address => Voter) whitelist;
     
-    mapping (uint => uint[]) public winningProposalIds;
+    mapping (uint => uint[]) winningProposalIds;
     
     enum WorkflowStatus {
         RegisteringVoters,
@@ -48,12 +48,6 @@ contract Voting is Ownable {
     uint private winningProposalId;
     Proposal[] public proposals;
     
-    bool votersRegistrationOver;
-    bool proposalsRegistrationOn;
-    bool proposalsRegistrationOver;
-    bool votingTimeOn;
-    bool votingTimeOver;
-    bool votesCounted;
     uint votersCount; //pour compter le nb d'électeurs ajoutés
     uint votesCount; //pour compter le nb de votes
     
@@ -65,33 +59,25 @@ contract Voting is Ownable {
     
     //@notice L'administrateur du vote enregistre une liste blanche d'électeurs identifiés par leur adresse Ethereum.
     function A_votersRegistration(address _address) public onlyOwner {
-        require(!votersRegistrationOver, "Registration is over");
+        require(voteStatus==WorkflowStatus.RegisteringVoters, "Registration is over");
         require(!whitelist[_address].isRegistered, "This address is already registered");
-        
         whitelist[_address].isRegistered = true;
         votersCount++;
         emit VoterRegistered(_address);
     }
     
-    //@notice L'administrateur du vote termine la session d'enregistrement des électeurs
-    function B_votersRegistrationTermination() public onlyOwner{
-        require(votersCount>2,"Please add at least 1 voter!");
-        votersRegistrationOver = true;
-        emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
-        updateVoteStatus();
-    }
-     
     //@notice L'administrateur du vote commence la session d'enregistrement des propositions.
-    function C_proposalsRegistrationStart() public onlyOwner{
-        proposalsRegistrationOn = true;
+    function B_proposalsRegistrationStart() public onlyOwner{
+        require(votersCount>2,"Please add at least 1 voter!");
+        emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
         emit ProposalsRegistrationStarted();
-        updateVoteStatus();
+        voteStatus = WorkflowStatus.ProposalsRegistrationStarted;
     }
     
     //@notice Les électeurs inscrits sont autorisés à enregistrer leurs propositions pendant que la session d'enregistrement est active.
-    function D_proposalRegistration(string memory _proposal) public {
+    function C_proposalRegistration(string memory _proposal) public {
         require(keccak256(abi.encodePacked((_proposal)))!=keccak256(abi.encodePacked((""))),"Your proposal is empty!");
-        require(proposalsRegistrationOn && !proposalsRegistrationOver,"Proposals registration not open!");
+        require(voteStatus==WorkflowStatus.ProposalsRegistrationStarted,"Proposals registration not open!");
         require(whitelist[msg.sender].isRegistered, "You can't make a proposal cause you're not registered");
         require(whitelist[msg.sender].votedProposalId==0,"You already made a proposal!");
         
@@ -105,25 +91,25 @@ contract Voting is Ownable {
     }
     
     //@notice L'administrateur met fin à la session d'enregistrement des propositions.
-    function E_proposalsRegistrationTermination() public onlyOwner{
+    function D_proposalsRegistrationTermination() public onlyOwner{
+        require(voteStatus==WorkflowStatus.ProposalsRegistrationStarted,"Proposals registration not open!");
         require(proposals.length!=0,"Please add more proposals!");
-        proposalsRegistrationOver = true;
         emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationStarted,WorkflowStatus.ProposalsRegistrationEnded);
+        voteStatus = WorkflowStatus.ProposalsRegistrationEnded;
         emit ProposalsRegistrationEnded();
         emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationEnded,WorkflowStatus.VotingSessionStarted);
-          updateVoteStatus();
     }
     
     //@notice L'administrateur commence la session de vote.
-    function F_votingTimeStart() public onlyOwner{
-        votingTimeOn = true;
+    function E_votingTimeStart() public onlyOwner{
+        require(voteStatus==WorkflowStatus.ProposalsRegistrationEnded,"Proposals registration not ended!");
+        voteStatus = WorkflowStatus.VotingSessionStarted;
         emit VotingSessionStarted();
-        updateVoteStatus();
     }
     
     //@notice Les électeurs inscrits votent pour leurs propositions préférées.
-    function G_vote(uint propId) public {
-        require(votingTimeOn && !votingTimeOver,"Vote not open!");
+    function F_vote(uint propId) public {
+        require(voteStatus == WorkflowStatus.VotingSessionStarted,"Vote not open!");
         require(whitelist[msg.sender].isRegistered, "You can't vote cause you're not registered");
         require(!whitelist[msg.sender].hasVoted, "You voted already");
         
@@ -136,18 +122,17 @@ contract Voting is Ownable {
     }
     
     //@notice L'administrateur du vote met fin à la session de vote.
-    function H_votingTimeTermination() public onlyOwner{
+    function G_votingTimeTermination() public onlyOwner{
+        require(voteStatus == WorkflowStatus.VotingSessionStarted,"Vote not open!");
         require(votesCount>0,"Nobody has voted yet!");
-        votingTimeOver = true;
+        voteStatus = WorkflowStatus.VotingSessionEnded;
         emit WorkflowStatusChange(WorkflowStatus.VotingSessionStarted,WorkflowStatus.VotingSessionEnded);
         emit VotingSessionEnded();
-        updateVoteStatus();
     }
     
     //@notice L'administrateur du vote comptabilise les votes.
-    function I_CountVotes() public onlyOwner {
-        require(votersRegistrationOver && proposalsRegistrationOver && votingTimeOver,"Counting votes not open!");
-        emit WorkflowStatusChange(WorkflowStatus.VotingSessionEnded,WorkflowStatus.VotesTallied);
+    function H_CountVotes() public onlyOwner {
+        require(voteStatus == WorkflowStatus.VotingSessionEnded,"Counting votes not open!");
         
         //@dev on prend en compte la possibilité de plusieurs propositions gagnantes 
         //@dev dont les indexes sont stockés dans winningProposalIds
@@ -160,36 +145,20 @@ contract Voting is Ownable {
                 winningProposalIds[winningProposalId].push(index) ;
             }
         }
-        votesCounted = true;
-        updateVoteStatus();
+        emit WorkflowStatusChange(WorkflowStatus.VotingSessionEnded,WorkflowStatus.VotesTallied);
+        voteStatus = WorkflowStatus.VotesTallied;
         emit VotesTallied();
     }
     
     //@notice Tout le monde peut vérifier les derniers détails de la proposition gagnante.
-    function J_WinningProposalId() public view returns(uint[] memory) {
-        require(votesCounted,"Votes not counted yet!");
+    function I_WinningProposalId() public view returns(uint[] memory) {
+        require(voteStatus == WorkflowStatus.VotesTallied,"Votes not counted yet!");
         //@dev on retourne un tableau avec les indices des propositions gagnantes
         return winningProposalIds[winningProposalId];
     }
     
-    //@dev permet d'updater le status du vote
-    function updateVoteStatus() private {
-        if (proposalsRegistrationOn && !proposalsRegistrationOver) voteStatus = WorkflowStatus.ProposalsRegistrationStarted;
-        if (proposalsRegistrationOver && !votingTimeOn) voteStatus = WorkflowStatus.ProposalsRegistrationEnded;
-        if (votingTimeOn && !votingTimeOver) voteStatus = WorkflowStatus.VotingSessionStarted;
-        if (votingTimeOver && !votesCounted) voteStatus = WorkflowStatus.VotingSessionEnded;
-        if (votesCounted) voteStatus = WorkflowStatus.VotesTallied;
-    }
-    
     //@dev retourne la phase du vote dans laquelle on se trouve
     function getVoteStatus() public view returns (string memory) {
-        // if (voteStatus == WorkflowStatus.RegisteringVoters){ return "RegisteringVoters";}
-        // else if (voteStatus == WorkflowStatus.ProposalsRegistrationStarted) {return "ProposalsRegistrationStarted";}
-        // else if (voteStatus == WorkflowStatus.ProposalsRegistrationEnded) {return "ProposalsRegistrationEnded";}
-        // else if (voteStatus == WorkflowStatus.VotingSessionStarted) {return "VotingSessionStarted";}
-        // else if (voteStatus == WorkflowStatus.VotingSessionEnded) {return "VotingSessionEnded";}
-        // else {return "VotingSessionEnded";}
-        
         string[6] memory Status=[
         "RegisteringVoters",
         "ProposalsRegistrationStarted",
