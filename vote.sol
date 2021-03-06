@@ -20,6 +20,12 @@ contract Voting is Ownable {
         uint voteCount;
     }
     
+    uint private winningProposalId;
+    uint votersCount; //pour compter le nb d'électeurs ajoutés
+    uint votesCount; //pour compter le nb de votes
+    
+    Proposal[] public proposals;
+    
     mapping(address => Voter) whitelist;
     
     mapping (uint => uint[]) winningProposalIds;
@@ -32,7 +38,6 @@ contract Voting is Ownable {
         VotingSessionEnded,
         VotesTallied
     }
-    
     WorkflowStatus voteStatus = WorkflowStatus.RegisteringVoters;
     
     event VoterRegistered(address voterAddress);
@@ -44,13 +49,6 @@ contract Voting is Ownable {
     event Voted (address voter, uint proposalId);
     event VotesTallied();
     event WorkflowStatusChange(WorkflowStatus previousStatus, WorkflowStatus newStatus);
-    
-    uint private winningProposalId;
-    Proposal[] public proposals;
-    
-    uint votersCount; //pour compter le nb d'électeurs ajoutés
-    uint votesCount; //pour compter le nb de votes
-    
     
     constructor () {
         whitelist[msg.sender].isRegistered = true;
@@ -68,6 +66,7 @@ contract Voting is Ownable {
     
     //@notice L'administrateur du vote commence la session d'enregistrement des propositions.
     function B_proposalsRegistrationStart() public onlyOwner{
+        require(voteStatus==WorkflowStatus.RegisteringVoters, "Proposals Registration already started!");
         require(votersCount>2,"Please add at least 1 voter!");
         emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters,WorkflowStatus.ProposalsRegistrationStarted);
         emit ProposalsRegistrationStarted();
@@ -79,15 +78,8 @@ contract Voting is Ownable {
         require(keccak256(abi.encodePacked((_proposal)))!=keccak256(abi.encodePacked((""))),"Your proposal is empty!");
         require(voteStatus==WorkflowStatus.ProposalsRegistrationStarted,"Proposals registration not open!");
         require(whitelist[msg.sender].isRegistered, "You can't make a proposal cause you're not registered");
-        require(whitelist[msg.sender].votedProposalId==0,"You already made a proposal!");
-        
         proposals.push(Proposal(_proposal,0));
-
-        //@dev Pour éviter que le premier proposant puisse faire plusieurs propositions 
-        if (proposals.length==1) {whitelist[msg.sender].votedProposalId =  proposals.length;}
-        else {whitelist[msg.sender].votedProposalId =  proposals.length-1;}
-        
-        emit ProposalRegistered( whitelist[msg.sender].votedProposalId);
+        emit ProposalRegistered(proposals.length-1);
     }
     
     //@notice L'administrateur met fin à la session d'enregistrement des propositions.
@@ -136,6 +128,10 @@ contract Voting is Ownable {
         
         //@dev on prend en compte la possibilité de plusieurs propositions gagnantes 
         //@dev dont les indexes sont stockés dans winningProposalIds
+        
+        
+        if (proposals[0].voteCount >= proposals[1].voteCount) winningProposalIds[0].push(0);
+        
         for (uint index = 1; index < proposals.length; index++) {
             if (proposals[winningProposalId].voteCount < proposals[index].voteCount) {
                 winningProposalId = index ;
@@ -143,8 +139,9 @@ contract Voting is Ownable {
             }
             else if (proposals[winningProposalId].voteCount == proposals[index].voteCount) { 
                 winningProposalIds[winningProposalId].push(index) ;
-            }
+            } 
         }
+        
         emit WorkflowStatusChange(WorkflowStatus.VotingSessionEnded,WorkflowStatus.VotesTallied);
         voteStatus = WorkflowStatus.VotesTallied;
         emit VotesTallied();
